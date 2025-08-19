@@ -6,9 +6,9 @@
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
+  "author": "TonNom",
   "license": "ISC",
+  "keywords": ["discord", "bot", "render"],
   "dependencies": {
     "discord.js": "^14.21.0",
     "dotenv": "^16.0.3",
