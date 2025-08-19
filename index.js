@@ -1,216 +1,79 @@
-// ===================== IMPORTS =====================
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
-const schedule = require("node-schedule");
-require("dotenv").config();
-const express = require("express");
+// ===================== PANEL DE TICKETS =====================
+const { ActionRowBuilder, StringSelectMenuBuilder, PermissionFlagsBits } = require("discord.js");
 
-// ===================== EXPRESS (pour Render) =====================
-const app = express();
-const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => res.send("Bot is running ✅"));
-app.listen(PORT, () => console.log(`🌐 Serveur web actif sur le port ${PORT}`));
-
-// ===================== CONSTANTES =====================
-const OWNER_ROLE = "1405636625236758549"; // rôle admin
-const KEY_FILE_URL = "https://gofile.io/d/F331o8"; // fichier lié aux clés
-
-// ===================== CLIENT =====================
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
-
-// ===================== POOLS DE CLÉS =====================
-const keyPools = {
-  key1day: ["1DAY-AAA-BBB", "1DAY-CCC-DDD", "1DAY-EEE-FFF"],
-  key3days: ["3DAY-111-222", "3DAY-333-444", "3DAY-555-666"],
-  key1month: ["1MO-XXX-YYY", "1MO-ZZZ-000"],
-  keytest: ["TEST-1111", "TEST-2222"],
-};
-
-// ===================== CONFIG =====================
-let config = {
-  welcomeChannel: null,
-  welcomeGif: "https://media.giphy.com/media/OkJat1YNdoD3W/giphy.gif",
-  announceChannel: null,
-  ticketChannel: null,
-  scheduledHour: "12:00",
-  programmeMessage: null,
-};
-
-// ===================== COMMANDES =====================
-const commands = [
-  new SlashCommandBuilder()
-    .setName("key")
-    .setDescription("Envoie une clé en DM à un utilisateur")
-    .addUserOption(opt => opt.setName("user").setDescription("Utilisateur à qui envoyer").setRequired(true))
-    .addStringOption(opt => opt.setName("type").setDescription("Type de clé").setRequired(true)
-      .addChoices(
-        { name: "1 jour", value: "key1day" },
-        { name: "3 jours", value: "key3days" },
-        { name: "1 mois", value: "key1month" },
-        { name: "test", value: "keytest" }
-      )
-    ),
-  new SlashCommandBuilder()
-    .setName("addkey")
-    .setDescription("Ajoute une ou plusieurs clés à un type de clé")
-    .addStringOption(opt => opt.setName("type").setDescription("Type de clé").setRequired(true)
-      .addChoices(
-        { name: "1 jour", value: "key1day" },
-        { name: "3 jours", value: "key3days" },
-        { name: "1 mois", value: "key1month" },
-        { name: "test", value: "keytest" }
-      )
-    )
-    .addStringOption(opt => opt.setName("keys").setDescription("Clés séparées par espace ou virgule").setRequired(true)),
-  new SlashCommandBuilder().setName("purge").setDescription("Supprime des messages").addIntegerOption(opt => opt.setName("nombre").setDescription("Nombre de messages").setRequired(true)),
-  new SlashCommandBuilder().setName("say").setDescription("Le bot répète ton message").addStringOption(opt => opt.setName("message").setDescription("Message à répéter").setRequired(true)),
-  new SlashCommandBuilder().setName("close").setDescription("Ferme le salon courant"),
-  new SlashCommandBuilder().setName("invites").setDescription("Montre les invitations d’un utilisateur").addUserOption(opt => opt.setName("user").setDescription("Utilisateur").setRequired(true)),
-  new SlashCommandBuilder()
-    .setName("setup")
-    .setDescription("Configure le bot")
-    .addChannelOption(opt => opt.setName("welcome").setDescription("Salon de bienvenue"))
-    .addStringOption(opt => opt.setName("welcomegif").setDescription("Lien du gif de bienvenue"))
-    .addChannelOption(opt => opt.setName("announce").setDescription("Salon d’annonces"))
-    .addChannelOption(opt => opt.setName("tickets").setDescription("Salon panel tickets"))
-    .addStringOption(opt => opt.setName("hour").setDescription("Heure des messages quotidiens (HH:MM)")),
-  new SlashCommandBuilder().setName("programme").setDescription("Envoie le message programmé").addStringOption(opt => opt.setName("message").setDescription("Message à envoyer").setRequired(true)),
+// IDs des rôles qui auront accès aux tickets
+const TICKET_ROLES = [
+  "1405636625236758549",
+  "1405927995188969623",
+  "1405636625211588717",
+  "1405636625211588715",
+  "1405636625211588710"
 ];
 
-// ===================== READY =====================
-client.once("ready", async () => {
-  console.log(`✅ Connecté en tant que ${client.user.tag}`);
+// Salon où le panel sera envoyé
+const TICKET_PANEL_CHANNEL_ID = config.ticketChannel; // à configurer via /setup
 
-  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-  try {
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log("✅ Commandes slash enregistrées !");
-  } catch (err) {
-    console.error("❌ Erreur lors de l'enregistrement des commandes :", err);
-  }
-});
+// Fonction pour créer le panel
+async function sendTicketPanel() {
+  if (!TICKET_PANEL_CHANNEL_ID) return console.log("Salon de panel non configuré.");
+  const channel = await client.channels.fetch(TICKET_PANEL_CHANNEL_ID);
+  if (!channel) return console.log("Salon panel introuvable.");
 
-// ===================== INTERACTIONS =====================
+  const row = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId("ticket_select")
+      .setPlaceholder("Ouvre un ticket")
+      .addOptions([
+        { label: "Buy", value: "buy", emoji: "💲" },
+        { label: "Help", value: "help", emoji: "❓" },
+        { label: "Hwid", value: "hwid", emoji: "🔧" },
+        { label: "Media", value: "media", emoji: "📷" }
+      ])
+  );
+
+  await channel.send({
+    content: "🎫 Ouvre un ticket via le menu ci-dessous :",
+    components: [row]
+  });
+}
+
+// Événement interaction pour le select menu
 client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+  if (!interaction.isStringSelectMenu()) return;
+  if (interaction.customId !== "ticket_select") return;
 
-  const { commandName } = interaction;
+  const reason = interaction.values[0]; // buy, help, hwid, media
+  const guild = interaction.guild;
 
-  // Vérification rôle
-  if (!interaction.member.roles.cache.has(OWNER_ROLE) && !["invites"].includes(commandName)) {
-    return interaction.reply({ content: "❌ Tu n’as pas la permission.", ephemeral: true });
+  // Création d'une catégorie si elle n'existe pas
+  let category = guild.channels.cache.find(c => c.name === "🎫 Tickets" && c.type === 4); // type 4 = category
+  if (!category) {
+    category = await guild.channels.create({
+      name: "🎫 Tickets",
+      type: 4
+    });
   }
 
-  try {
-    // ----- /key -----
-    if (commandName === "key") {
-      const user = interaction.options.getUser("user");
-      const type = interaction.options.getString("type");
+  // Numérotation des tickets
+  const ticketNumber = guild.channels.cache.filter(c => c.parentId === category.id).size + 1;
 
-      if (!keyPools[type] || keyPools[type].length === 0)
-        return interaction.reply({ content: "❌ Plus de clés dispo pour ce type.", ephemeral: true });
+  // Création du salon du ticket
+  const ticketChannel = await guild.channels.create({
+    name: `${ticketNumber}-${reason}`,
+    type: 0, // type 0 = text
+    parent: category.id,
+    permissionOverwrites: [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // tout le monde interdit
+      ...TICKET_ROLES.map(roleId => ({ id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+      { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+    ]
+  });
 
-      const key = keyPools[type].shift();
-
-      await user.send(`Salut ${user.username}, voici ta clé : \`${key}\`\nFichier : ${KEY_FILE_URL}`);
-      await interaction.reply({ content: `✅ Clé envoyée en DM à ${user}`, ephemeral: true });
-    }
-
-    // ----- /addkey -----
-    if (commandName === "addkey") {
-      const type = interaction.options.getString("type");
-      const keysRaw = interaction.options.getString("keys");
-      const keysArray = keysRaw.split(/[\s,]+/).filter(k => k);
-
-      if (!keyPools[type]) return interaction.reply({ content: "❌ Type de clé invalide.", ephemeral: true });
-
-      keyPools[type].push(...keysArray);
-      await interaction.reply({ content: `✅ ${keysArray.length} clés ajoutées au type ${type}.`, ephemeral: true });
-    }
-
-    // ----- /purge -----
-    if (commandName === "purge") {
-      const number = interaction.options.getInteger("nombre");
-      if (number < 1 || number > 100) return interaction.reply({ content: "❌ Entre 1 et 100.", ephemeral: true });
-
-      await interaction.channel.bulkDelete(number, true);
-      await interaction.reply({ content: `✅ ${number} messages supprimés.`, ephemeral: true });
-    }
-
-    // ----- /say -----
-    if (commandName === "say") {
-      const msg = interaction.options.getString("message");
-      await interaction.channel.send(msg);
-      await interaction.reply({ content: "✅ Message envoyé.", ephemeral: true });
-    }
-
-    // ----- /close -----
-    if (commandName === "close") {
-      if (interaction.channel.deletable) {
-        await interaction.reply({ content: "✅ Salon fermé.", ephemeral: true });
-        await interaction.channel.delete();
-      } else {
-        await interaction.reply({ content: "❌ Impossible de supprimer ce salon.", ephemeral: true });
-      }
-    }
-
-    // ----- /invites -----
-    if (commandName === "invites") {
-      const user = interaction.options.getUser("user");
-      const invites = await interaction.guild.invites.fetch();
-      const userInvites = invites.filter(i => i.inviter && i.inviter.id === user.id);
-
-      let total = 0;
-      userInvites.forEach(i => total += i.uses);
-
-      const desc = userInvites.map(i => `🔗 ${i.code} → ${i.uses} uses`).join("\n") || "Aucune invite.";
-      await interaction.reply(`📊 Invites de ${user} :\n${desc}\n\nTotal : **${total}**`);
-    }
-
-    // ----- /setup -----
-    if (commandName === "setup") {
-      const welcome = interaction.options.getChannel("welcome");
-      const welcomeGif = interaction.options.getString("welcomegif");
-      const announce = interaction.options.getChannel("announce");
-      const tickets = interaction.options.getChannel("tickets");
-      const hour = interaction.options.getString("hour");
-
-      if (welcome) config.welcomeChannel = welcome.id;
-      if (welcomeGif) config.welcomeGif = welcomeGif;
-      if (announce) config.announceChannel = announce.id;
-      if (tickets) config.ticketChannel = tickets.id;
-      if (hour) config.scheduledHour = hour;
-
-      await interaction.reply({ content: "✅ Configuration mise à jour !", ephemeral: true });
-    }
-
-    // ----- /programme -----
-    if (commandName === "programme") {
-      const message = interaction.options.getString("message");
-      if (!config.announceChannel) return interaction.reply({ content: "❌ Aucun salon d’annonces configuré.", ephemeral: true });
-
-      const channel = await interaction.guild.channels.fetch(config.announceChannel);
-      if (!channel) return interaction.reply({ content: "❌ Salon introuvable.", ephemeral: true });
-
-      await channel.send(message);
-      await interaction.reply({ content: "✅ Message envoyé dans le salon d’annonces.", ephemeral: true });
-    }
-
-  } catch (err) {
-    console.error("❌ Erreur interaction :", err);
-    if (!interaction.replied) interaction.reply({ content: "❌ Une erreur est survenue.", ephemeral: true });
-  }
+  await ticketChannel.send(`🎫 Ticket ouvert pour **${reason.toUpperCase()}** par <@${interaction.user.id}>.`);
+  await interaction.reply({ content: `✅ Ton ticket a été créé : ${ticketChannel}`, ephemeral: true });
 });
 
-// ===================== LOGIN =====================
-client.login(process.env.TOKEN).then(() => {
-  console.log("🔑 Tentative de login réussie !");
-}).catch(err => {
-  console.error("❌ Login échoué :", err);
+// Envoi automatique du panel au démarrage
+client.once("ready", async () => {
+  await sendTicketPanel();
 });
