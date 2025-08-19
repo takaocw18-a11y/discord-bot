@@ -1,8 +1,5 @@
 // ===================== IMPORTS =====================
-const {
-  Client, GatewayIntentBits, REST, Routes,
-  SlashCommandBuilder
-} = require("discord.js");
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 const schedule = require("node-schedule");
 require("dotenv").config();
 
@@ -35,7 +32,8 @@ let config = {
   announceChannel: null,
   ticketChannel: null,
   scheduledHour: "12:00",
-  programmeMessage: null
+  programmeMessage: null,
+  ticketRoles: [] // rôles qui pourront interagir avec les tickets
 };
 
 // ===================== COMMANDES =====================
@@ -79,7 +77,8 @@ const commands = [
 
   // Close
   new SlashCommandBuilder().setName("close")
-    .setDescription("Ferme le salon courant"),
+    .setDescription("Ferme le salon courant pour certains rôles")
+    .addRoleOption(opt => opt.setName("role").setDescription("Rôle à bloquer").setRequired(false)),
 
   // Invites
   new SlashCommandBuilder().setName("invites")
@@ -93,7 +92,8 @@ const commands = [
     .addStringOption(opt => opt.setName("welcomegif").setDescription("Lien du gif de bienvenue"))
     .addChannelOption(opt => opt.setName("announce").setDescription("Salon d’annonces"))
     .addChannelOption(opt => opt.setName("tickets").setDescription("Salon panel tickets"))
-    .addStringOption(opt => opt.setName("hour").setDescription("Heure des messages quotidiens (HH:MM)")),
+    .addStringOption(opt => opt.setName("hour").setDescription("Heure des messages quotidiens (HH:MM)"))
+    .addRoleOption(opt => opt.setName("ticketrole").setDescription("Rôle autorisé à gérer les tickets")),
 
   // Programme
   new SlashCommandBuilder().setName("programme")
@@ -169,12 +169,17 @@ client.on("interactionCreate", async interaction => {
 
   // ----- /close -----
   if (commandName === "close") {
-    if (interaction.channel.deletable) {
-      await interaction.reply({ content: "✅ Salon fermé.", ephemeral: true });
-      await interaction.channel.delete();
-    } else {
-      await interaction.reply({ content: "❌ Impossible de supprimer ce salon.", ephemeral: true });
+    const role = interaction.options.getRole("role");
+    if (!role && config.ticketRoles.length === 0)
+      return interaction.reply({ content: "❌ Aucun rôle défini pour fermer le ticket.", ephemeral: true });
+
+    const targetRoles = role ? [role] : config.ticketRoles;
+
+    for (const r of targetRoles) {
+      await interaction.channel.permissionOverwrites.edit(r, { SendMessages: false });
     }
+
+    await interaction.reply({ content: `✅ Ticket fermé pour les rôles ${targetRoles.map(r => r.name || r).join(", ")}.`, ephemeral: true });
   }
 
   // ----- /invites -----
@@ -197,12 +202,14 @@ client.on("interactionCreate", async interaction => {
     const announce = interaction.options.getChannel("announce");
     const tickets = interaction.options.getChannel("tickets");
     const hour = interaction.options.getString("hour");
+    const ticketRole = interaction.options.getRole("ticketrole");
 
     if (welcome) config.welcomeChannel = welcome.id;
     if (welcomeGif) config.welcomeGif = welcomeGif;
     if (announce) config.announceChannel = announce.id;
     if (tickets) config.ticketChannel = tickets.id;
     if (hour) config.scheduledHour = hour;
+    if (ticketRole) config.ticketRoles.push(ticketRole);
 
     await interaction.reply({ content: "✅ Configuration mise à jour !", ephemeral: true });
   }
@@ -210,13 +217,11 @@ client.on("interactionCreate", async interaction => {
   // ----- /programme -----
   if (commandName === "programme") {
     const message = interaction.options.getString("message");
-    if (!config.announceChannel) return interaction.reply({ content: "❌ Aucun salon d’annonces configuré.", ephemeral: true });
+    if (!config.announceChannel) return interaction.reply({ content: "❌ Salon d’annonce non configuré.", ephemeral: true });
 
-    const channel = await interaction.guild.channels.fetch(config.announceChannel);
-    if (!channel) return interaction.reply({ content: "❌ Salon introuvable.", ephemeral: true });
-
+    const channel = await client.channels.fetch(config.announceChannel);
     await channel.send(message);
-    await interaction.reply({ content: "✅ Message envoyé dans le salon d’annonces.", ephemeral: true });
+    await interaction.reply({ content: "✅ Message envoyé dans le salon d’annonce.", ephemeral: true });
   }
 });
 
