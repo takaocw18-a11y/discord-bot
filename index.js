@@ -1,13 +1,15 @@
 // ===================== IMPORTS =====================
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
+const {
+  Client, GatewayIntentBits, REST, Routes,
+  SlashCommandBuilder
+} = require("discord.js");
 const schedule = require("node-schedule");
 require("dotenv").config();
-const express = require("express");
 
-// ===================== EXPRESS (pour Render) =====================
+// Express pour Render (éviter shutdown)
+const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 app.get("/", (req, res) => res.send("Bot is running ✅"));
 app.listen(PORT, () => console.log(`🌐 Serveur web actif sur le port ${PORT}`));
 
@@ -17,209 +19,212 @@ const KEY_FILE_URL = "https://gofile.io/d/F331o8"; // fichier lié aux clés
 
 // ===================== INIT CLIENT =====================
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 // ===================== POOLS DE CLÉS =====================
 const keyPools = {
-    key1day: ["1DAY-AAA-BBB", "1DAY-CCC-DDD", "1DAY-EEE-FFF"],
-    key3days: ["3DAY-111-222", "3DAY-333-444", "3DAY-555-666"],
-    key1month: ["1MO-XXX-YYY", "1MO-ZZZ-000"],
-    keytest: ["TEST-1111", "TEST-2222"]
+  key1day: ["1DAY-AAA-BBB", "1DAY-CCC-DDD", "1DAY-EEE-FFF"],
+  key3days: ["3DAY-111-222", "3DAY-333-444", "3DAY-555-666"],
+  key1month: ["1MO-XXX-YYY", "1MO-ZZZ-000"],
+  keytest: ["TEST-1111", "TEST-2222"]
 };
 
 // ===================== CONFIG =====================
 let config = {
-    welcomeChannel: null,
-    welcomeGif: "https://media.giphy.com/media/OkJat1YNdoD3W/giphy.gif",
-    announceChannel: null,
-    ticketChannel: null,
-    scheduledHour: "12:00",
-    programmeMessage: null
+  welcomeChannel: null,
+  welcomeGif: "https://media.giphy.com/media/OkJat1YNdoD3W/giphy.gif",
+  announceChannel: null,
+  ticketChannel: null,
+  scheduledHour: "12:00",
+  programmeMessage: null
 };
 
 // ===================== COMMANDES =====================
 const commands = [
-    // /key
-    new SlashCommandBuilder()
-        .setName("key")
-        .setDescription("Envoie une clé en DM à un utilisateur")
-        .addUserOption(opt => opt.setName("user").setDescription("Utilisateur à qui envoyer").setRequired(true))
-        .addStringOption(opt => opt.setName("type").setDescription("Type de clé").setRequired(true)
-            .addChoices(
-                { name: "1 jour", value: "key1day" },
-                { name: "3 jours", value: "key3days" },
-                { name: "1 mois", value: "key1month" },
-                { name: "test", value: "keytest" }
-            )),
+  // Clés
+  new SlashCommandBuilder().setName("key")
+    .setDescription("Envoie une clé en DM à un utilisateur")
+    .addUserOption(opt => opt.setName("user").setDescription("Utilisateur à qui envoyer").setRequired(true))
+    .addStringOption(opt => opt.setName("type").setDescription("Type de clé").setRequired(true)
+      .addChoices(
+        { name: "1 jour", value: "key1day" },
+        { name: "3 jours", value: "key3days" },
+        { name: "1 mois", value: "key1month" },
+        { name: "test", value: "keytest" }
+      )
+    ),
 
-    // /addkey
-    new SlashCommandBuilder()
-        .setName("addkey")
-        .setDescription("Ajoute une ou plusieurs clés à un type de clé")
-        .addStringOption(opt => opt.setName("type").setDescription("Type de clé").setRequired(true)
-            .addChoices(
-                { name: "1 jour", value: "key1day" },
-                { name: "3 jours", value: "key3days" },
-                { name: "1 mois", value: "key1month" },
-                { name: "test", value: "keytest" }
-            ))
-        .addStringOption(opt => opt.setName("keys").setDescription("Clés séparées par espace ou virgule").setRequired(true)),
+  // AddKey
+  new SlashCommandBuilder()
+    .setName("addkey")
+    .setDescription("Ajoute une ou plusieurs clés à un type de clé")
+    .addStringOption(opt => opt.setName("type").setDescription("Type de clé").setRequired(true)
+      .addChoices(
+        { name: "1 jour", value: "key1day" },
+        { name: "3 jours", value: "key3days" },
+        { name: "1 mois", value: "key1month" },
+        { name: "test", value: "keytest" }
+      )
+    )
+    .addStringOption(opt => opt.setName("keys").setDescription("Clés séparées par espace ou virgule").setRequired(true)),
 
-    // /purge
-    new SlashCommandBuilder().setName("purge")
-        .setDescription("Supprime des messages")
-        .addIntegerOption(opt => opt.setName("nombre").setDescription("Nombre de messages").setRequired(true)),
+  // Purge
+  new SlashCommandBuilder().setName("purge")
+    .setDescription("Supprime des messages")
+    .addIntegerOption(opt => opt.setName("nombre").setDescription("Nombre de messages").setRequired(true)),
 
-    // /say
-    new SlashCommandBuilder().setName("say")
-        .setDescription("Le bot répète ton message")
-        .addStringOption(opt => opt.setName("message").setDescription("Message à répéter").setRequired(true)),
+  // Say
+  new SlashCommandBuilder().setName("say")
+    .setDescription("Le bot répète ton message")
+    .addStringOption(opt => opt.setName("message").setDescription("Message à répéter").setRequired(true)),
 
-    // /close
-    new SlashCommandBuilder().setName("close")
-        .setDescription("Ferme le salon courant"),
+  // Close
+  new SlashCommandBuilder().setName("close")
+    .setDescription("Ferme le salon courant"),
 
-    // /invites
-    new SlashCommandBuilder().setName("invites")
-        .setDescription("Montre les invitations d’un utilisateur")
-        .addUserOption(opt => opt.setName("user").setDescription("Utilisateur").setRequired(true)),
+  // Invites
+  new SlashCommandBuilder().setName("invites")
+    .setDescription("Montre les invitations d’un utilisateur")
+    .addUserOption(opt => opt.setName("user").setDescription("Utilisateur").setRequired(true)),
 
-    // /setup
-    new SlashCommandBuilder().setName("setup")
-        .setDescription("Configure le bot")
-        .addChannelOption(opt => opt.setName("welcome").setDescription("Salon de bienvenue"))
-        .addStringOption(opt => opt.setName("welcomegif").setDescription("Lien du gif de bienvenue"))
-        .addChannelOption(opt => opt.setName("announce").setDescription("Salon d’annonces"))
-        .addChannelOption(opt => opt.setName("tickets").setDescription("Salon panel tickets"))
-        .addStringOption(opt => opt.setName("hour").setDescription("Heure des messages quotidiens (HH:MM)")),
+  // Setup
+  new SlashCommandBuilder().setName("setup")
+    .setDescription("Configure le bot")
+    .addChannelOption(opt => opt.setName("welcome").setDescription("Salon de bienvenue"))
+    .addStringOption(opt => opt.setName("welcomegif").setDescription("Lien du gif de bienvenue"))
+    .addChannelOption(opt => opt.setName("announce").setDescription("Salon d’annonces"))
+    .addChannelOption(opt => opt.setName("tickets").setDescription("Salon panel tickets"))
+    .addStringOption(opt => opt.setName("hour").setDescription("Heure des messages quotidiens (HH:MM)")),
 
-    // /programme
-    new SlashCommandBuilder().setName("programme")
-        .setDescription("Envoie le message programmé")
-        .addStringOption(opt => opt.setName("message").setDescription("Message à envoyer").setRequired(true)),
+  // Programme
+  new SlashCommandBuilder().setName("programme")
+    .setDescription("Envoie le message programmé")
+    .addStringOption(opt => opt.setName("message").setDescription("Message à envoyer").setRequired(true)),
 ];
 
 // ===================== READY =====================
 client.once("ready", async () => {
-    console.log(`✅ Connecté en tant que ${client.user.tag}`);
+  console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
-    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log("✅ Commandes slash enregistrées !");
+  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+  await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+
+  console.log("✅ Commandes slash enregistrées !");
 });
 
 // ===================== INTERACTIONS =====================
 client.on("interactionCreate", async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-    const { commandName } = interaction;
+  if (!interaction.isChatInputCommand()) return;
 
-    if (!interaction.member.roles.cache.has(OWNER_ROLE) && !["invites"].includes(commandName)) {
-        return interaction.reply({ content: "❌ Tu n’as pas la permission.", ephemeral: true });
+  const { commandName } = interaction;
+
+  if (!interaction.member.roles.cache.has(OWNER_ROLE) && !["invites"].includes(commandName)) {
+    return interaction.reply({ content: "❌ Tu n’as pas la permission.", ephemeral: true });
+  }
+
+  // ----- /key -----
+  if (commandName === "key") {
+    const user = interaction.options.getUser("user");
+    const type = interaction.options.getString("type");
+
+    if (!keyPools[type] || keyPools[type].length === 0)
+      return interaction.reply({ content: "❌ Plus de clés dispo pour ce type.", ephemeral: true });
+
+    const key = keyPools[type].shift();
+
+    try {
+      await user.send(`Salut ${user.username}, voici ta clé : \`${key}\`\nFichier : ${KEY_FILE_URL}`);
+      await interaction.reply({ content: `✅ Clé envoyée en DM à ${user}`, ephemeral: true });
+    } catch {
+      await interaction.reply({ content: "❌ Impossible d’envoyer le DM.", ephemeral: true });
     }
+  }
 
-    // ----- /key -----
-    if (commandName === "key") {
-        const user = interaction.options.getUser("user");
-        const type = interaction.options.getString("type");
+  // ----- /addkey -----
+  if (commandName === "addkey") {
+    const type = interaction.options.getString("type");
+    const keysRaw = interaction.options.getString("keys");
+    const keysArray = keysRaw.split(/[\s,]+/).filter(k => k);
 
-        if (!keyPools[type] || keyPools[type].length === 0)
-            return interaction.reply({ content: "❌ Plus de clés dispo pour ce type.", ephemeral: true });
+    if (!keyPools[type]) return interaction.reply({ content: "❌ Type de clé invalide.", ephemeral: true });
 
-        const key = keyPools[type].shift();
+    keyPools[type].push(...keysArray);
+    await interaction.reply({ content: `✅ ${keysArray.length} clés ajoutées au type ${type}.`, ephemeral: true });
+  }
 
-        try {
-            await user.send(`Salut ${user.username}, voici ta clé : \`${key}\`\nFichier : ${KEY_FILE_URL}`);
-            await interaction.reply({ content: `✅ Clé envoyée en DM à ${user}`, ephemeral: true });
-        } catch {
-            await interaction.reply({ content: "❌ Impossible d’envoyer le DM.", ephemeral: true });
-        }
+  // ----- /purge -----
+  if (commandName === "purge") {
+    const number = interaction.options.getInteger("nombre");
+    if (number < 1 || number > 100) return interaction.reply({ content: "❌ Entre 1 et 100.", ephemeral: true });
+
+    await interaction.channel.bulkDelete(number, true);
+    await interaction.reply({ content: `✅ ${number} messages supprimés.`, ephemeral: true });
+  }
+
+  // ----- /say -----
+  if (commandName === "say") {
+    const msg = interaction.options.getString("message");
+    await interaction.channel.send(msg);
+    await interaction.reply({ content: "✅ Message envoyé.", ephemeral: true });
+  }
+
+  // ----- /close -----
+  if (commandName === "close") {
+    if (interaction.channel.deletable) {
+      await interaction.reply({ content: "✅ Salon fermé.", ephemeral: true });
+      await interaction.channel.delete();
+    } else {
+      await interaction.reply({ content: "❌ Impossible de supprimer ce salon.", ephemeral: true });
     }
+  }
 
-    // ----- /addkey -----
-    if (commandName === "addkey") {
-        const type = interaction.options.getString("type");
-        const keysRaw = interaction.options.getString("keys");
-        const keysArray = keysRaw.split(/[\s,]+/).filter(k => k);
+  // ----- /invites -----
+  if (commandName === "invites") {
+    const user = interaction.options.getUser("user");
+    const invites = await interaction.guild.invites.fetch();
+    const userInvites = invites.filter(i => i.inviter && i.inviter.id === user.id);
 
-        if (!keyPools[type]) return interaction.reply({ content: "❌ Type de clé invalide.", ephemeral: true });
+    let total = 0;
+    userInvites.forEach(i => total += i.uses);
 
-        keyPools[type].push(...keysArray);
-        await interaction.reply({ content: `✅ ${keysArray.length} clés ajoutées au type ${type}.`, ephemeral: true });
-    }
+    const desc = userInvites.map(i => `🔗 ${i.code} → ${i.uses} uses`).join("\n") || "Aucune invite.";
+    await interaction.reply(`📊 Invites de ${user} :\n${desc}\n\nTotal : **${total}**`);
+  }
 
-    // ----- /purge -----
-    if (commandName === "purge") {
-        const number = interaction.options.getInteger("nombre");
-        if (number < 1 || number > 100) return interaction.reply({ content: "❌ Entre 1 et 100.", ephemeral: true });
+  // ----- /setup -----
+  if (commandName === "setup") {
+    const welcome = interaction.options.getChannel("welcome");
+    const welcomeGif = interaction.options.getString("welcomegif");
+    const announce = interaction.options.getChannel("announce");
+    const tickets = interaction.options.getChannel("tickets");
+    const hour = interaction.options.getString("hour");
 
-        await interaction.channel.bulkDelete(number, true);
-        await interaction.reply({ content: `✅ ${number} messages supprimés.`, ephemeral: true });
-    }
+    if (welcome) config.welcomeChannel = welcome.id;
+    if (welcomeGif) config.welcomeGif = welcomeGif;
+    if (announce) config.announceChannel = announce.id;
+    if (tickets) config.ticketChannel = tickets.id;
+    if (hour) config.scheduledHour = hour;
 
-    // ----- /say -----
-    if (commandName === "say") {
-        const msg = interaction.options.getString("message");
-        await interaction.channel.send(msg);
-        await interaction.reply({ content: "✅ Message envoyé.", ephemeral: true });
-    }
+    await interaction.reply({ content: "✅ Configuration mise à jour !", ephemeral: true });
+  }
 
-    // ----- /close -----
-    if (commandName === "close") {
-        if (interaction.channel.deletable) {
-            await interaction.reply({ content: "✅ Salon fermé.", ephemeral: true });
-            await interaction.channel.delete();
-        } else {
-            await interaction.reply({ content: "❌ Impossible de supprimer ce salon.", ephemeral: true });
-        }
-    }
+  // ----- /programme -----
+  if (commandName === "programme") {
+    const message = interaction.options.getString("message");
+    if (!config.announceChannel) return interaction.reply({ content: "❌ Aucun salon d’annonces configuré.", ephemeral: true });
 
-    // ----- /invites -----
-    if (commandName === "invites") {
-        const user = interaction.options.getUser("user");
-        const invites = await interaction.guild.invites.fetch();
-        const userInvites = invites.filter(i => i.inviter && i.inviter.id === user.id);
+    const channel = await interaction.guild.channels.fetch(config.announceChannel);
+    if (!channel) return interaction.reply({ content: "❌ Salon introuvable.", ephemeral: true });
 
-        let total = 0;
-        userInvites.forEach(i => total += i.uses);
-
-        const desc = userInvites.map(i => `🔗 ${i.code} → ${i.uses} uses`).join("\n") || "Aucune invite.";
-        await interaction.reply(`📊 Invites de ${user} :\n${desc}\n\nTotal : **${total}**`);
-    }
-
-    // ----- /setup -----
-    if (commandName === "setup") {
-        const welcome = interaction.options.getChannel("welcome");
-        const welcomeGif = interaction.options.getString("welcomegif");
-        const announce = interaction.options.getChannel("announce");
-        const tickets = interaction.options.getChannel("tickets");
-        const hour = interaction.options.getString("hour");
-
-        if (welcome) config.welcomeChannel = welcome.id;
-        if (welcomeGif) config.welcomeGif = welcomeGif;
-        if (announce) config.announceChannel = announce.id;
-        if (tickets) config.ticketChannel = tickets.id;
-        if (hour) config.scheduledHour = hour;
-
-        await interaction.reply({ content: "✅ Configuration mise à jour !", ephemeral: true });
-    }
-
-    // ----- /programme -----
-    if (commandName === "programme") {
-        const message = interaction.options.getString("message");
-        if (!config.announceChannel) return interaction.reply({ content: "❌ Aucun salon d’annonces configuré.", ephemeral: true });
-
-        const channel = await interaction.guild.channels.fetch(config.announceChannel);
-        if (!channel) return interaction.reply({ content: "❌ Salon introuvable.", ephemeral: true });
-
-        await channel.send(message);
-        await interaction.reply({ content: "✅ Message envoyé dans le salon d’annonces.", ephemeral: true });
-    }
+    await channel.send(message);
+    await interaction.reply({ content: "✅ Message envoyé dans le salon d’annonces.", ephemeral: true });
+  }
 });
 
 // ===================== LOGIN =====================
