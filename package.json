@@ -2,16 +2,20 @@
   "name": "mon-bot",
   "version": "1.0.0",
   "description": "Bot Discord hébergé sur Render",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/index.js"
   },
   "author": "TonNom",
   "license": "ISC",
   "keywords": ["discord", "bot", "render"],
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
     "discord.js": "^14.21.0",
     "dotenv": "^16.0.3",
-    "node-schedule": "^2.1.1"
+    "node-schedule": "^2.1.1",
+    "express": "^4.18.2"
   }
 }
