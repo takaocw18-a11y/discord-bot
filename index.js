@@ -1,5 +1,6 @@
 // ===================== BOT TICKETS COMPLET =====================
 require("dotenv").config();
+const fs = require("fs");
 const { 
     Client, 
     GatewayIntentBits, 
@@ -25,13 +26,29 @@ const TICKET_ROLES = [
     "1405636625211588710"
 ];
 
-const TICKET_PANEL_CHANNEL_ID = "TON_CHANNEL_ID_ICI"; // Remplace par ton salon
+const TICKET_PANEL_CHANNEL_ID = "1407260852243136512"; // Remplace par ton salon
+const PANEL_FILE = "./panel.json"; // Fichier pour stocker l'ID du panel
 
 // ------------------ PANEL TICKETS ------------------
+let panelMessageId;
+
+try {
+    panelMessageId = JSON.parse(fs.readFileSync(PANEL_FILE)).id;
+} catch {
+    panelMessageId = null;
+}
+
 async function sendTicketPanel() {
     const channel = await client.channels.fetch(TICKET_PANEL_CHANNEL_ID);
     if (!channel) return console.log("Salon panel introuvable.");
 
+    // Vérifier si le message existe déjà
+    if (panelMessageId) {
+        const msg = await channel.messages.fetch(panelMessageId).catch(() => null);
+        if (msg) return console.log("Panel déjà présent, rien à envoyer.");
+    }
+
+    // Créer le panel
     const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
             .setCustomId("ticket_select")
@@ -44,12 +61,14 @@ async function sendTicketPanel() {
             ])
     );
 
-    await channel.send({ content: "🎫 Ouvre un ticket via le menu ci-dessous :", components: [row] });
+    const msg = await channel.send({ content: "🎫 Ouvre un ticket via le menu ci-dessous :", components: [row] });
+    panelMessageId = msg.id;
+    fs.writeFileSync(PANEL_FILE, JSON.stringify({ id: msg.id }));
+    console.log("Panel envoyé et ID sauvegardé.");
 }
 
 // ------------------ INTERACTIONS ------------------
 client.on("interactionCreate", async interaction => {
-    // ----- CREATE TICKET -----
     if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
         const reason = interaction.values[0];
         const guild = interaction.guild;
@@ -90,7 +109,7 @@ client.on("interactionCreate", async interaction => {
 
     // ----- CLOSE TICKET -----
     if (interaction.isButton() && interaction.customId.startsWith("close_ticket_")) {
-        const ticketOwnerId = interaction.customId.split("_")[2]; // Récupère l'ID du propriétaire
+        const ticketOwnerId = interaction.customId.split("_")[2];
         const ticketChannel = interaction.channel;
 
         await interaction.reply({ content: "✅ Ticket fermé, envoi du transcript...", ephemeral: true });
